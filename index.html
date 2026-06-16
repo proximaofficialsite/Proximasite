@@ -14,6 +14,7 @@
       --bg-dark: #0b0f1a;
       --danger: #ef4444;
       --success: #25d366; /* WhatsApp Green */
+      --warning: #ff9f00; /* Key Generate Orange/Yellow */
       --glass: #ffffff;
       --card-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
     }
@@ -100,9 +101,12 @@
   <div class="nav-item" onclick="showView('cloudView')"><i class="fa fa-cloud"></i> Free Hack</div>
   <div class="nav-item" onclick="showView('proView')"><i class="fa fa-shopping-cart"></i> Pro Store</div>
   
-  <!-- NEW WHATSAPP SUPPORT ITEM -->
   <a href="https://wa.me/919395874180" style="text-decoration: none;">
     <div class="nav-item" style="color: var(--success);"><i class="fa-brands fa-whatsapp" style="color: var(--success);"></i> WhatsApp Support</div>
+  </a>
+
+  <a id="keyGenerateLink" href="#" target="_blank" style="text-decoration: none;">
+    <div class="nav-item" style="color: var(--warning);"><i class="fa fa-key" style="color: var(--warning);"></i> Key Generate</div>
   </a>
 </div>
 
@@ -136,7 +140,6 @@
 <div id="cloudView" style="display:none;" class="dashboard-container"><h2>Free Hacks</h2><div id="cloudContent"></div></div>
 <div id="proView" style="display:none;" class="dashboard-container"><h2>Pro Store</h2><div id="proContent"></div></div>
 
-<!-- MODALS -->
 <div class="auth-modal" id="authModal" style="position:fixed;inset:0;background:rgba(15, 23, 42, 0.8);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(8px);">
   <div class="auth-card">
     <div style="text-align: center; margin-bottom: 25px;">
@@ -149,7 +152,6 @@
     <p onclick="toggleAuth(false)" style="margin-top:20px;font-size:14px;color:#64748b;text-align:center;cursor:pointer;">Dismiss</p>
   </div>
 </div>
-
 <div id="paymentModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.9);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter: blur(10px);">
   <div class="modal-content" style="background:#fff;padding:25px;border-radius:20px;width:85%;max-width:320px;text-align:center;">
     <h3>Unlock Premium</h3>
@@ -189,11 +191,19 @@ const CURRENT_VERSION_CODE = 1;
 
 db.ref('appConfig').on('value', snap => {
   const config = snap.val();
-  if (config && config.versionCode > CURRENT_VERSION_CODE) {
-    document.getElementById('updateModal').style.display = 'flex';
-    document.getElementById('updateBtn').href = config.updateUrl;
-  } else {
-    document.getElementById('updateModal').style.display = 'none';
+  if (config) {
+    if (config.versionCode > CURRENT_VERSION_CODE) {
+      document.getElementById('updateModal').style.display = 'flex';
+      document.getElementById('updateBtn').href = config.updateUrl;
+    } else {
+      document.getElementById('updateModal').style.display = 'none';
+    }
+    
+    if (config.keyGenerateUrl) {
+      document.getElementById('keyGenerateLink').href = config.keyGenerateUrl;
+    } else {
+      document.getElementById('keyGenerateLink').href = "#";
+    }
   }
 });
 
@@ -231,15 +241,33 @@ auth.onAuthStateChanged(u=>{
   }
 });
 
+// --- LIVE DATA LISTENER WITH STRICT SEPARATION ---
 db.ref('downloads').on('value',s=>{
   const main=document.getElementById('mainContent'), cloud=document.getElementById('cloudContent'), pro=document.getElementById('proContent');
   main.innerHTML=''; cloud.innerHTML=''; pro.innerHTML='';
   if(!s.exists()) return;
+  
   Object.values(s.val()).reverse().forEach(i=>{
     const itemTitle = i.title || "Premium Tool"; 
+    const itemType = i.type || "free"; // Default to 'free' if type is missing
+    
     const cardHtml = `<div class="image-card"><div class="thumb-wrapper"><img src="${i.thumbnail}"></div><div class="item-info"><div class="item-title">${itemTitle}</div></div><div class="btn-section"><a href="${i.link1}" class="download-btn">Free Download</a></div></div>`;
     const proHtml = `<div class="image-card"><div class="thumb-wrapper"><img src="${i.thumbnail}"></div><div class="item-info"><div class="item-title">${itemTitle}</div></div><div class="btn-section"><button onclick="openPay()" class="buy-btn">Unlock Pro</button></div></div>`;
-    main.innerHTML += cardHtml; cloud.innerHTML += cardHtml; pro.innerHTML += proHtml;
+    
+    // 1. Homepage (Trending Hacks) -> ONLY show if itemType is NOT 'pro' (Strictly Free Items)
+    if(itemType !== 'pro') {
+      main.innerHTML += cardHtml;
+    }
+
+    // 2. Free Hacks Tab -> ONLY show if itemType is 'free'
+    if(itemType === 'free') {
+      cloud.innerHTML += cardHtml;
+    }
+    
+    // 3. Pro Store Tab -> ONLY show if itemType is 'pro'
+    if(itemType === 'pro') {
+      pro.innerHTML += proHtml;
+    }
   });
 });
 db.ref('appSettings/paymentScanner').on('value',s=>document.getElementById('qrImage').src=s.exists()?s.val():'');
